@@ -1,44 +1,22 @@
 #!/usr/bin/env python3
-"""
-Caching request module
-"""
-from flask import Flask, request
+""" Implementing an expiring web cache and tracker
+    obtain the HTML content of a particular URL and returns it """
 import redis
+import requests
+r = redis.Redis()
+count = 0
 
 
-app = Flask(__name__)
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+def get_page(url: str) -> str:
+    """ track how many times a particular URL was accessed in the key
+        "count:{url}"
+        and cache the result with an expiration time of 10 seconds """
+    r.set(f"cached:{url}", count)
+    resp = requests.get(url)
+    r.incr(f"count:{url}")
+    r.setex(f"cached:{url}", 10, r.get(f"cached:{url}"))
+    return resp.text
 
-@app.route('/some_url')
-def count_url_access():
-    url = request.url
 
-    # Check if the URL's count is already cached
-    cache_key = f"count:{url}"
-    count = redis_client.get(cache_key)
-
-    if count is not None:
-        # If count is cached, return it
-        count = int(count)
-    else:
-        # If count is not cached, get it from the data store and cache it
-        # Replace this with your own logic to get the count from the data store
-        count = get_count_from_data_store(url)
-        
-        # Cache the count with an expiration time of 10 seconds
-        redis_client.setex(cache_key, 10, count)
-
-    # Increment the count and update the cache
-    count += 1
-    redis_client.setex(cache_key, 10, count)
-
-     return f"This URL has been accessed {count} times."
-
- def get_count_from_data_store(url):
-    # Replace this function with your own logic to get the count from the data store
-    # For example, you might query a database or fetch the count from another source
-    # For this example, let's assume we're just returning 0.
-    return 0
-
-if __name__ == '__main__':
-    app.run()
+if __name__ == "__main__":
+    get_page('http://slowwly.robertomurray.co.uk')
